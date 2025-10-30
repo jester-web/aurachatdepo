@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('chat message', (data) => {
         const item = document.createElement('li');
         
-        if (data.user === 'System') {
+        if (data.username === 'System') { // 'user' yerine 'username' kontrolü
             item.classList.add('system');
             item.textContent = data.text;
         } else if (data.type === 'private') {
@@ -102,22 +102,46 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Varsayılan avatar
             const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NkY2RjZCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MxLjY2IDAgMyAxLjM0IDMgMyAwIDEuNjYtMS4zNCAzLTMgMy0xLjY2IDAtMy0xLjM0LTMtMyAwLTEuNjYgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHM1Ljk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
-            const avatarSrc = data.avatarUrl || data.avatarURL || defaultAvatar;
+            const avatarSrc = data.avatarUrl || defaultAvatar; // Sadece data.avatarUrl kullan
             const timestamp = new Date(data.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             item.innerHTML = `
-                <img src="${avatarSrc}" class="avatar" alt="${data.user}" onerror="this.src='${defaultAvatar}'">
+                <img src="${avatarSrc}" class="avatar" alt="${data.username}" onerror="this.src='${defaultAvatar}'">
                 <div class="message-content">
-                    <div class="message-header"><strong>${data.username || data.user}</strong><span class="timestamp">${timestamp}</span></div>
+                    <div class="message-header"><strong>${data.username}</strong><span class="timestamp">${timestamp}</span></div>
                     <span>${data.text}</span>
                 </div>`;
-            if ((data.username || data.user) === myUsername) {
+            if (data.username === myUsername) { // Sadece data.username kontrolü
                 item.classList.add('own-message'); // Kendi mesajımızsa sınıf ekle
             }
         }
         
         messages.prepend(item); // Mesajları başa ekle (CSS ile ters çevrildiği için altta görünecek)
         // messages.scrollTop = 0; // flex-direction: column-reverse ile kaydırmaya gerek kalmaz.
+    });
+
+    // Sunucudan gelen eski mesajları yükleme
+    socket.on('load old messages', (messageHistory) => {
+        messageHistory.forEach(data => {
+            const item = document.createElement('li');
+            const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NkY2RjZCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MxLjY2IDAgMyAxLjM0IDMgMyAwIDEuNjYtMS4zNCAzLTMgMy0xLjY2IDAtMy0xLjM0LTMtMyAwLTEuNjYgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHM1Ljk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
+            const avatarSrc = data.avatarUrl || defaultAvatar;
+            const timestamp = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            item.innerHTML = `
+                <img src="${avatarSrc}" class="avatar" alt="${data.username}" onerror="this.src='${defaultAvatar}'">
+                <div class="message-content">
+                    <div class="message-header"><strong>${data.username}</strong><span class="timestamp">${timestamp}</span></div>
+                    <span>${data.text}</span>
+                </div>`;
+            
+            if (data.username === myUsername) {
+                item.classList.add('own-message');
+            }
+
+            // Eski mesajları da başa ekliyoruz (CSS ile ters çevrildiği için doğru sırada görünecekler)
+            messages.prepend(item);
+        });
     });
 
     // Online kullanıcı listesini güncelleme
