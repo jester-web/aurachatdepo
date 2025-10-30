@@ -120,30 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // messages.scrollTop = 0; // flex-direction: column-reverse ile kaydırmaya gerek kalmaz.
     });
 
-    // Sunucudan gelen eski mesajları yükleme
-    socket.on('load old messages', (messageHistory) => {
-        messageHistory.forEach(data => {
-            const item = document.createElement('li');
-            const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NkY2RjZCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MxLjY2IDAgMyAxLjM0IDMgMyAwIDEuNjYtMS4zNCAzLTMgMy0xLjY2IDAtMy0xLjM0LTMtMyAwLTEuNjYgMS4zNC0zIDMtM3ptMCAxNC4yYy0yLjUgMC00LjcxLTEuMjgtNi0zLjIyLjAzLTEuOTkgNC0zLjA4IDYtMy4wOHM1Ljk3IDEuMDkgNiAzLjA4Yy0xLjI5IDEuOTQtMy41IDMuMjItNiAzLjIyeiIvPjwvc3ZnPg==';
-            const avatarSrc = data.avatarUrl || defaultAvatar;
-            const timestamp = new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            item.innerHTML = `
-                <img src="${avatarSrc}" class="avatar" alt="${data.username}" onerror="this.src='${defaultAvatar}'">
-                <div class="message-content">
-                    <div class="message-header"><strong>${data.username}</strong><span class="timestamp">${timestamp}</span></div>
-                    <span>${data.text}</span>
-                </div>`;
-            
-            if (data.username === myUsername) {
-                item.classList.add('own-message');
-            }
-
-            // Eski mesajları da başa ekliyoruz (CSS ile ters çevrildiği için doğru sırada görünecekler)
-            messages.prepend(item);
-        });
-    });
-
     // Online kullanıcı listesini güncelleme
     // `onlineUsersMap` artık bir obje olacak: { socketId: username }
     socket.on('update user list', (onlineUsersMap) => {
@@ -174,11 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
             item.dataset.socketId = socketId; // Konuşmacı göstergesi için ID ekle
             userList.appendChild(item);
 
-            // Sesli sohbet aktifse ve bu yeni kullanıcıyla bağlantımız yoksa, bir bağlantı oluştur
-            if (isVoiceChatActive && !peerConnections[socketId]) {
-                console.log(`Yeni kullanıcı ${onlineUsersMap[socketId]} (${socketId}) katıldı. WebRTC bağlantısı başlatılıyor.`);
-                createPeerConnection(socketId, true); // true çünkü biz aramayı başlatan tarafız
-            }
+            // ARTIK BURADA OTOMATİK BAĞLANTI OLUŞTURULMAYACAK
         });
 
         // Ayrılan kullanıcıları peerConnections'dan ve ses öğelerinden kaldır
@@ -226,14 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Konuşma algılamayı başlat
                 setupAudioAnalysis(localStream);
 
-                // Şu anda çevrimiçi olan her kullanıcı için (kendimiz hariç) bir peer bağlantısı oluştur
-                const currentOnlineUsersMap = socket.onlineUsersMap || {};
-                for (const remoteSocketId in currentOnlineUsersMap) {
-                    if (remoteSocketId !== mySocketId) {
-                        createPeerConnection(remoteSocketId, true); // true çünkü biz aramayı başlatan tarafız
-                    }
-                }
-
+                // Sunucuya sesli sohbete katıldığımızı bildir.
+                // Sunucu bunu diğerlerine duyuracak ve onlar bizimle bağlantı kuracak.
+                socket.emit('join-voice-chat');
             } catch (err) {
                 console.error('Mikrofona erişim hatası:', err);
                 alert('Mikrofon erişimi reddedildi veya kullanılamıyor.');
@@ -557,6 +524,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Başka bir kullanıcı sesli sohbete katıldığında tetiklenir
+    socket.on('user-joined-voice', ({ socketId }) => {
+        // Eğer biz de sesli sohbetteysek, yeni katılan kullanıcı ile bağlantı kur
+        if (isVoiceChatActive) {
+            console.log(`Kullanıcı ${socketId} sesli sohbete katıldı. Peer bağlantısı başlatılıyor.`);
+            // İki tarafın da aynı anda bağlantı kurmasını engellemek için ID karşılaştırması yapabiliriz.
+            // ID'si küçük olan başlatsın. Bu, "glare" durumunu önler.
+            createPeerConnection(socketId, mySocketId > socketId);
+        }
+    });
     // --- Konuşmacı Göstergesi Mantığı ---
 
     function setupAudioAnalysis(stream) {
