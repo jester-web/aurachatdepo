@@ -3,29 +3,11 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const path = require('path');
-const mongoose = require('mongoose');
 
 // Uygulama ve sunucu kurulumu
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
-// --- MongoDB Bağlantısı ---
-const MONGO_URI = 'mongodb://localhost:27017/chatdb'; // Veritabanı adı burada belirtilir
-
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('MongoDB bağlantısı başarılı.'))
-  .catch(err => console.error('MongoDB bağlantı hatası:', err));
-
-// --- Mesaj Şeması ve Modeli ---
-const MessageSchema = new mongoose.Schema({
-  username: String,
-  text: String,
-  avatarUrl: String,
-  timestamp: { type: Date, default: Date.now }
-});
-
-const Message = mongoose.model('Message', MessageSchema); // 'messages' koleksiyonu otomatik oluşur
 
 // 'public' klasörünü statik dosyalar için sun
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,17 +23,6 @@ const onlineUsers = {};
 // Socket.IO bağlantı mantığı
 io.on('connection', (socket) => {
   console.log('Bir kullanıcı bağlandı:', socket.id);
-
-  // Yeni bağlanan kullanıcıya eski mesajları gönder
-  Message.find().sort({ timestamp: -1 }).limit(50).exec()
-    .then(messages => {
-      // Mesajları en eskiden en yeniye doğru göndermek için diziyi ters çeviriyoruz.
-      socket.emit('load old messages', messages.reverse());
-    })
-    .catch(err => {
-      console.error('Eski mesajlar yüklenirken hata:', err);
-    });
-
 
   // Kullanıcı sohbete katıldığında
   socket.on('join chat', ({ username, avatarUrl }) => {
@@ -77,10 +48,6 @@ io.on('connection', (socket) => {
       avatarUrl: userData.avatarUrl,
       timestamp: new Date()
     };
-
-    // Mesajı veritabanına kaydet
-    const newMessage = new Message(messageData);
-    newMessage.save();
 
     io.emit('chat message', messageData);
   });
@@ -128,6 +95,12 @@ io.on('connection', (socket) => {
   // Kullanıcı konuşmaya başladığında/durduğunda diğerlerine haber ver
   socket.on('speaking', (isSpeaking) => {
     socket.broadcast.emit('user-speaking', { socketId: socket.id, isSpeaking });
+  });
+
+  // Bir kullanıcı sesli sohbete katıldığında bunu diğerlerine bildir
+  socket.on('join-voice-chat', () => {
+    // Diğer tüm kullanıcılara bu kullanıcının sesli sohbete katıldığını bildir
+    socket.broadcast.emit('user-joined-voice', { socketId: socket.id });
   });
 
   // Özel mesajları yönlendir
