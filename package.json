@@ -2,10 +2,10 @@
   "name": "aurachat",
   "version": "1.0.0",
   "description": "A real-time voice and text chat desktop application.",
-  "main": "main.js",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron ."
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -19,8 +19,5 @@
   },
   "engines": {
     "node": ">=18.x"
-  },
-  "devDependencies": {
-    "electron": "^31.2.1"
   }
 }
