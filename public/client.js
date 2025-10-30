@@ -116,8 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        messages.prepend(item); // Mesajları üste ekle (CSS ile ters çevrildiği için altta görünecek)
-        // messages.scrollTop = messages.scrollHeight; // Artık buna gerek yok
+        messages.prepend(item); // Mesajları başa ekle (CSS ile ters çevrildiği için altta görünecek)
+        // messages.scrollTop = 0; // flex-direction: column-reverse ile kaydırmaya gerek kalmaz.
     });
 
     // Online kullanıcı listesini güncelleme
@@ -401,11 +401,21 @@ document.addEventListener('DOMContentLoaded', () => {
         pc.ontrack = (event) => {
             console.log(`Uzak izleyici ${remoteSocketId} adresinden alındı`);
             if (event.track.kind === 'audio') {
-                const remoteAudio = document.createElement('audio');
-                remoteAudio.id = `audio-${remoteSocketId}`;
-                remoteAudio.autoplay = true;
-                remoteAudio.srcObject = event.streams[0];
-                remoteAudiosContainer.appendChild(remoteAudio);
+                // Mevcut bir audio elementi var mı diye kontrol et, yoksa oluştur.
+                // Bu, yeniden bağlanma durumlarında çift element oluşmasını engeller.
+                let remoteAudio = document.getElementById(`audio-${remoteSocketId}`);
+                if (!remoteAudio) {
+                    remoteAudio = document.createElement('audio');
+                    remoteAudio.id = `audio-${remoteSocketId}`;
+                    remoteAudio.autoplay = true;
+                    remoteAudiosContainer.appendChild(remoteAudio);
+                }
+                // Gelen track'i mevcut veya yeni oluşturulan MediaStream'e ekle.
+                // event.streams[0] yerine bu yöntem daha güvenilirdir.
+                const stream = remoteAudio.srcObject || new MediaStream();
+                stream.addTrack(event.track);
+                remoteAudio.srcObject = stream;
+
             } else if (event.track.kind === 'video') {
                 // Gelen video akışının kendi ekran paylaşımımız olup olmadığını kontrol et
                 // Eğer öyleyse, gösterme (zaten yerel olarak gösteriliyor olabilir)
@@ -416,18 +426,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const videoWrapper = document.createElement('div');
-                videoWrapper.className = 'video-wrapper';
-                videoWrapper.id = `video-${remoteSocketId}`;
-                const remoteVideo = document.createElement('video');
-                remoteVideo.autoplay = true;
-                remoteVideo.playsInline = true; // iOS için önemli
-                remoteVideo.srcObject = event.streams[0];
-                const nameLabel = document.createElement('div');
-                nameLabel.className = 'video-label';
-                nameLabel.textContent = socket.onlineUsersMap[remoteSocketId]?.username || 'User';
-                videoWrapper.append(remoteVideo, nameLabel);
-                videoGrid.appendChild(videoWrapper);
+                // Mevcut bir video sarmalayıcı var mı diye kontrol et
+                let videoWrapper = document.getElementById(`video-${remoteSocketId}`);
+                if (!videoWrapper) {
+                    videoWrapper = document.createElement('div');
+                    videoWrapper.className = 'video-wrapper';
+                    videoWrapper.id = `video-${remoteSocketId}`;
+
+                    const remoteVideo = document.createElement('video');
+                    remoteVideo.autoplay = true;
+                    remoteVideo.playsInline = true; // iOS için önemli
+
+                    const nameLabel = document.createElement('div');
+                    nameLabel.className = 'video-label';
+                    nameLabel.textContent = socket.onlineUsersMap[remoteSocketId]?.username || 'User';
+
+                    videoWrapper.append(remoteVideo, nameLabel);
+                    videoGrid.appendChild(videoWrapper);
+                }
+
+                // Video elementine yeni akışı ata (daha güvenilir yöntem)
+                const remoteVideo = videoWrapper.querySelector('video');
+                remoteVideo.srcObject = new MediaStream([event.track]);
             }
         };
 

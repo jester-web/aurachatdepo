@@ -56,6 +56,31 @@ io.on('connection', (socket) => {
       io.emit('chat message', { user: 'System', text: `${userData.username} sohbetten ayrıldı.` });
     }
   });
+
+  // --- WebRTC Sinyalizasyon Mantığı ---
+
+  // Bir kullanıcıdan gelen teklifi hedef kullanıcıya ilet
+  socket.on('webrtc-offer', ({ offer, targetSocketId }) => {
+    socket.to(targetSocketId).emit('webrtc-offer', { offer, senderSocketId: socket.id });
+  });
+
+  // Bir kullanıcıdan gelen cevabı hedef kullanıcıya ilet
+  socket.on('webrtc-answer', ({ answer, targetSocketId }) => {
+    socket.to(targetSocketId).emit('webrtc-answer', { answer, senderSocketId: socket.id });
+  });
+
+  // Bir kullanıcıdan gelen ICE adayını hedef kullanıcıya ilet
+  socket.on('webrtc-ice-candidate', ({ candidate, targetSocketId }) => {
+    socket.to(targetSocketId).emit('webrtc-ice-candidate', { candidate, senderSocketId: socket.id });
+  });
+
+  // Bir kullanıcı ekran paylaşımını durdurduğunda diğerlerine haber ver
+  socket.on('stop-screen-share', () => {
+    const userData = onlineUsers[socket.id];
+    if (userData) {
+      socket.broadcast.emit('user-stopped-sharing', { socketId: socket.id, username: userData.username });
+    }
+  });
 });
 
 // Sunucuyu dinlemeye başla
